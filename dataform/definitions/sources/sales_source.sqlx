@@ -1,6 +1,0 @@
-config {
-  type: "declaration",
-  database: "gcp-assessment-v1-surya",
-  schema: "northstar",
-  name: "sales_raw"
-}

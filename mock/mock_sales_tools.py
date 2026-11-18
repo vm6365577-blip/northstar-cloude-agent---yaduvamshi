@@ -1,6 +1,6 @@
 """
-Mock implementation of BigQuery sales analytical tools.
-Allows end-to-end execution without live GCP credentials by querying local data.
+Mock implementation of AWS Athena Gold sales analytical tools.
+Allows end-to-end execution without live AWS credentials by querying local lakehouse data.
 """
 
 import csv
@@ -9,6 +9,12 @@ from pathlib import Path
 from typing import List, Dict, Any
 
 DATA_PATH = Path(__file__).resolve().parent.parent / "data" / "sales.csv"
+
+
+def _parse_date(date_str: str):
+    """Parse date handling mixed dash and slash formats."""
+    clean_str = date_str.strip().replace("/", "-")
+    return datetime.strptime(clean_str, "%Y-%m-%d").date()
 
 
 def _load_sales_records() -> List[Dict[str, Any]]:
@@ -22,7 +28,7 @@ def _load_sales_records() -> List[Dict[str, Any]]:
             try:
                 qty = float(row.get("quantity", 0) or 0)
                 price = float(row.get("unit_price", 0) or 0)
-                order_date = datetime.strptime(row.get("order_date", "").strip(), "%Y-%m-%d").date()
+                order_date = _parse_date(row.get("order_date", ""))
                 records.append({
                     "order_id": row.get("order_id", "").strip(),
                     "order_date": order_date,
@@ -64,7 +70,7 @@ def get_mock_top_products(limit: int = 5) -> dict:
         p["total_revenue"] = round(p["total_revenue"], 2)
 
     return {
-        "source": "Mock BigQuery Gold (Local Dataset)",
+        "source": "Mock Amazon Athena Gold (S3 Lakehouse)",
         "table": "gold.fact_sales",
         "data": sorted_products,
     }
@@ -84,7 +90,7 @@ def get_mock_revenue_by_region() -> dict:
     ]
 
     return {
-        "source": "Mock BigQuery Gold (Local Dataset)",
+        "source": "Mock Amazon Athena Gold (S3 Lakehouse)",
         "table": "gold.fact_sales",
         "data": sorted_regions,
     }
@@ -95,7 +101,7 @@ def get_mock_recent_best_category() -> dict:
     records = _load_sales_records()
     if not records:
         return {
-            "source": "Mock BigQuery Gold (Local Dataset)",
+            "source": "Mock Amazon Athena Gold (S3 Lakehouse)",
             "table": "gold.fact_sales",
             "data": [],
         }
@@ -111,14 +117,14 @@ def get_mock_recent_best_category() -> dict:
 
     if not cat_rev:
         return {
-            "source": "Mock BigQuery Gold (Local Dataset)",
+            "source": "Mock Amazon Athena Gold (S3 Lakehouse)",
             "table": "gold.fact_sales",
             "data": [],
         }
 
     top_cat, rev = max(cat_rev.items(), key=lambda x: x[1])
     return {
-        "source": "Mock BigQuery Gold (Local Dataset)",
+        "source": "Mock Amazon Athena Gold (S3 Lakehouse)",
         "table": "gold.fact_sales",
         "data": [{"category": top_cat, "total_revenue": round(rev, 2)}],
     }

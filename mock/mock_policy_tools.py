@@ -1,6 +1,6 @@
 """
-Mock implementation of BigQuery policy search tools.
-Extracts text from local data/product_docs/ without requiring active BigQuery.
+Mock implementation of AWS S3 / Athena policy search tools.
+Extracts text from local data/product_docs/ without requiring active AWS credentials.
 """
 
 import csv
@@ -51,7 +51,7 @@ def _load_mock_documents() -> List[Dict[str, str]]:
         if text.strip():
             docs.append({
                 "source_name": f.name,
-                "gcs_uri": f"gs://northstar-retail-bucket/raw/product_docs/{f.name}",
+                "s3_uri": f"s3://northstar-retail-lakehouse/raw/product_docs/{f.name}",
                 "document_type": f.suffix.lower().lstrip("."),
                 "content": text,
             })
@@ -77,7 +77,7 @@ def search_mock_policy_documents(search_query: str) -> dict:
                 break
 
     return {
-        "source": "Mock Product Documents (Local Store)",
+        "source": "Mock Product Documents (Local S3 Store)",
         "results": matching_docs,
         "message": "Results served via isolated local mock document store." if matching_docs else "No matching document content found.",
     }

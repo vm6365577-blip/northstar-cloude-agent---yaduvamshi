@@ -5,11 +5,11 @@
 .env.*
 !.env.example
 
-# Service Account Keys & Credentials
+# Service Account Keys & AWS Credentials
 *credentials*.json
 *service_account*.json
 *.key.json
-dataform/.df-credentials.json
+*.pem
 
 # Python
 __pycache__/
@@ -19,11 +19,11 @@ __pycache__/
 dist/
 build/
 
-# ADK & Local Databases
-.adk/
-**/.adk/
+# Local Lakehouse Cache & Databases
+data/lakehouse/
 *.db
 *.sqlite3
+*.duckdb
 
 # OS & IDE
 .DS_Store

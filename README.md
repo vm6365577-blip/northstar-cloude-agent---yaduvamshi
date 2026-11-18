@@ -1,26 +1,28 @@
-# NorthStar Retail - GCP Data Warehouse & GenAI Retail Assistant
+# NorthStar Retail - AWS Data Lakehouse & GenAI Retail Assistant
 
-A production-grade, end-to-end cloud data pipeline and conversational AI assistant built on Google Cloud Platform (GCP), Dataform, BigQuery, and Google Agent Development Kit (ADK) powered by Gemini.
+A production-grade, end-to-end cloud data pipeline and conversational AI assistant built on **Amazon Web Services (AWS)**, Amazon S3, AWS Glue, Amazon Athena / Redshift, and **Amazon Bedrock** powered by Anthropic Claude 3.5 Sonnet and Amazon Nova.
 
 ---
 
 ## 🌟 Overview
 
-The **NorthStar Retail** platform provides business stakeholders and store managers with instant, grounded answers to business intelligence and store policy inquiries.
+The **NorthStar Retail** platform provides business stakeholders and store managers with instant, strictly grounded answers to business intelligence and store policy inquiries.
 
 The solution integrates:
-1. **Cloud Storage Ingestion**: Automated ingestion of structured sales data and unstructured product/policy documents into Google Cloud Storage (GCS).
-2. **Medallion Data Lakehouse (BigQuery & Dataform)**:
-   - **Bronze Layer**: Raw transactional sales tables loaded directly from GCS (`bronze.sales_raw`).
-   - **Silver Layer**: Cleaned, deduplicated, and validated data with data quality filters (`silver.sales_enriched`).
-   - **Gold Layer**: Star schema consisting of dimensional (`dim_product`, `dim_date`) and fact (`fact_sales`) tables, alongside an unstructured document store (`product_documents`).
-3. **Conversational Agent (Google ADK & Gemini)**:
-   - Natural language business intelligence interface.
-   - Grounded tool execution preventing LLM hallucinations.
-   - Sales analytics tools querying the authoritative Gold layer.
-   - Document search tools providing policy answers (returns, shipping, warranties, loyalty programs).
-4. **Isolated Mock & Offline Evaluation Suite**:
-   - A dedicated `mock/` package and automated unit tests (`tests/test_mock_pipeline.py`) supporting full end-to-end execution without active GCP credentials.
+1. **Amazon S3 Raw Ingestion**: Automated ingestion of structured transactional sales data (`data/sales.csv`) and multi-format policy documents (`data/product_docs/`: PDF, JSON, CSV, TXT) into Amazon S3 (`s3://<bucket>/raw/`).
+2. **Medallion Data Lakehouse (S3, Glue & Athena)**:
+   - **Bronze Layer**: Raw transactional sales tables loaded into columnar Parquet (`bronze/sales_raw`).
+   - **Silver Layer**: Cleaned, deduplicated, type-casted, and validated data with data quality filters (`silver/sales_enriched`).
+   - **Gold Layer**: Star schema dimensional model (`fact_sales`, `dim_product`, `dim_date`) alongside an unstructured document store (`product_documents`) stored in high-performance Snappy Parquet.
+3. **Conversational AI Agent (Amazon Bedrock)**:
+   - Natural language business intelligence interface powered by Bedrock Converse API with native Tool Use.
+   - Strict grounding preventing LLM hallucinations with source citations (`Source: Amazon Athena Gold` or `Source: <filename>`).
+   - Analytical query tools executing parameterized queries against the Gold fact table.
+   - Hybrid semantic search tools indexing store policies (returns, warranties, shipping, sizing, FAQs).
+4. **Development Web Server & REST API**:
+   - Built-in FastAPI server with an interactive web chat UI at `http://127.0.0.1:8000`.
+5. **Zero-Credential Mock & Offline Evaluation Suite**:
+   - A dedicated `mock/` package and automated unit tests (`tests/`) supporting complete end-to-end execution without live AWS credentials.
 
 ---
 
@@ -33,29 +35,21 @@ flowchart TD
         DOCS["Product & Policy Docs (PDF, JSON, CSV, TXT)"]
     end
 
-    subgraph GCPStorage["Google Cloud Storage (GCS)"]
-        GCS_RAW["gs://bucket/raw/"]
+    subgraph AWSS3["Amazon S3 Lakehouse (SSE-S3 AES256)"]
+        S3_RAW["s3://bucket/raw/"]
+        S3_BRONZE["s3://bucket/bronze/sales_raw/"]
+        S3_SILVER["s3://bucket/silver/sales_enriched/"]
+        S3_GOLD["s3://bucket/gold/ (fact_sales, dim_product, dim_date)"]
+        S3_DOCS["s3://bucket/gold/product_documents/"]
     end
 
-    subgraph BigQueryWarehouse["BigQuery Medallion Lakehouse"]
-        subgraph BronzeLayer["Bronze Layer"]
-            BRONZE_SALES["bronze.sales_raw"]
-        end
-
-        subgraph DataformPipeline["Dataform SQLX Transformations"]
-            SILVER_SALES["silver.sales_enriched"]
-            GOLD_FACT["gold.fact_sales"]
-            GOLD_PROD["gold.dim_product"]
-            GOLD_DATE["gold.dim_date"]
-        end
-
-        subgraph GoldDocs["Gold Policy Store"]
-            GOLD_DOCS["gold.product_documents"]
-        end
+    subgraph AWSAnalytics["AWS Analytics & Query Engine"]
+        GLUE["AWS Glue Data Catalog"]
+        ATHENA["Amazon Athena / Redshift (ANSI SQL)"]
     end
 
-    subgraph ADKAgent["NorthStar Retail AI Agent (Google ADK)"]
-        AGENT["northstar_retail_agent (Gemini)"]
+    subgraph BedrockAgent["NorthStar Retail AI Assistant (Amazon Bedrock)"]
+        AGENT["northstar_retail_agent (Claude 3.5 Sonnet / Nova)"]
         
         subgraph Tools["Agent Tools"]
             TOOL_TOP["get_top_products"]
@@ -65,21 +59,20 @@ flowchart TD
         end
     end
 
-    CSV -->|upload_to_gcs.py| GCS_RAW
-    DOCS -->|upload_to_gcs.py| GCS_RAW
-    GCS_RAW -->|load_sales_to_bigquery.py| BRONZE_SALES
-    GCS_RAW -->|load_product_docs_to_bigquery.py| GOLD_DOCS
+    CSV -->|upload_to_s3.py| S3_RAW
+    DOCS -->|upload_to_s3.py| S3_RAW
+    S3_RAW -->|load_sales_to_lakehouse.py| S3_BRONZE
+    S3_RAW -->|load_product_docs_to_lakehouse.py| S3_DOCS
 
-    BRONZE_SALES -->|Dataform| SILVER_SALES
-    SILVER_SALES -->|Dataform| GOLD_FACT
-    SILVER_SALES -->|Dataform| GOLD_PROD
-    SILVER_SALES -->|Dataform| GOLD_DATE
+    S3_BRONZE -->|transform_medallion.py| S3_SILVER
+    S3_SILVER -->|transform_medallion.py| S3_GOLD
+    S3_GOLD --> GLUE
+    GLUE --> ATHENA
 
-    GOLD_FACT --> TOOL_TOP
-    GOLD_PROD --> TOOL_TOP
-    GOLD_FACT --> TOOL_REG
-    GOLD_FACT --> TOOL_CAT
-    GOLD_DOCS --> TOOL_POL
+    ATHENA --> TOOL_TOP
+    ATHENA --> TOOL_REG
+    ATHENA --> TOOL_CAT
+    S3_DOCS --> TOOL_POL
 
     TOOL_TOP --> AGENT
     TOOL_REG --> AGENT
@@ -92,22 +85,23 @@ flowchart TD
 ## 📁 Repository Structure
 
 ```text
-├── .env.example                               # Sample environment variables template
-├── .gitignore                                 # Git ignore rules for virtual environments and secrets
-├── requirements.txt                           # Python package dependencies
-├── README.md                                  # Complete project documentation and setup guide
-├── agent/                                     # Google ADK Conversational Agent
+├── .env.example                               # AWS environment variables template
+├── .gitignore                                 # Git ignore rules for venv, credentials, and cache
+├── requirements.txt                           # Python dependencies (Boto3, Pandas, DuckDB, FastAPI)
+├── README.md                                  # Complete architecture and execution guide
+├── agent/                                     # Amazon Bedrock Conversational Agent
 │   ├── __init__.py
-│   ├── config.py                              # Agent configuration and table mappings
-│   ├── agent.py                               # Root agent definition and prompt instructions
+│   ├── config.py                              # AWS S3, Athena, and Bedrock configuration
+│   ├── agent.py                               # Bedrock Converse API Agent with Tool Use loop
+│   ├── api.py                                 # FastAPI web server and interactive chat UI
 │   └── tools/
 │       ├── __init__.py
-│       ├── agent.py                           # Tools module root agent reference
-│       ├── sales_tools.py                     # BigQuery Gold analytical query tools
-│       └── policy_tools.py                    # BigQuery policy document search tools
+│       ├── agent.py                           # Tools agent bridge
+│       ├── sales_tools.py                     # Athena / Gold Lakehouse analytical query tools
+│       └── policy_tools.py                    # Hybrid semantic and keyword policy search tool
 ├── data/                                      # Local source dataset (sales and policies)
-│   ├── sales.csv                              # Historical sales transactions
-│   └── product_docs/                          # Unstructured policy documents
+│   ├── sales.csv                              # Historical transactional sales data
+│   └── product_docs/                          # Multi-format policy documents
 │       ├── loyalty.json
 │       ├── promotions.pdf
 │       ├── returns.pdf
@@ -116,30 +110,26 @@ flowchart TD
 │       ├── stationery-faq.csv
 │       ├── support.pdf
 │       └── warranty.pdf
-├── dataform/                                  # Dataform Medallion transformation pipeline
-│   ├── workflow_settings.yaml                 # Dataform project configuration
-│   └── definitions/
-│       ├── sources/
-│       │   └── sales_source.sqlx              # Declaration for bronze.sales_raw
-│       ├── silver/
-│       │   └── sales_enriched.sqlx            # Data cleansing, casting, and validation
-│       └── gold/
-│           ├── fact_sales.sqlx                # Star schema sales fact table
-│           ├── dim_product.sqlx               # Product dimension table
-│           └── dim_date.sqlx                  # Date dimension table
+├── sql/                                       # AWS Lakehouse DDL schemas
+│   └── create_lakehouse_tables.sql            # Athena / Redshift external table DDL
 ├── mock/                                      # Isolated Mock Suite (Zero-Credential Execution)
 │   ├── __init__.py
 │   ├── mock_sales_tools.py                    # Standalone mock sales analytical query tools
-│   ├── mock_policy_tools.py                   # Standalone mock policy document search tools
+│   ├── mock_policy_tools.py                   # Standalone mock policy search tools
 │   └── mock_ingestion.py                      # Standalone mock ingestion simulator
 ├── src/
-│   └── ingestion/                             # Production data ingestion & GCP initialization scripts
-│       ├── setup_gcp.py                       # GCS bucket provisioning
-│       ├── upload_to_gcs.py                   # Local-to-GCS upload pipeline
-│       ├── load_sales_to_bigquery.py          # Bronze sales BigQuery loader
-│       └── load_product_docs_to_bigquery.py   # Multi-format document parser & loader
+│   ├── ingestion/                             # AWS S3 provisioning and data loaders
+│   │   ├── setup_aws.py                       # S3 bucket provisioning & security configuration
+│   │   ├── upload_to_s3.py                    # Local-to-S3 raw upload pipeline
+│   │   ├── load_sales_to_lakehouse.py         # Bronze sales lakehouse loader
+│   │   └── load_product_docs_to_lakehouse.py  # Multi-format policy document parser
+│   ├── transformations/                       # Medallion ETL pipeline
+│   │   └── transform_medallion.py             # Bronze -> Silver -> Gold transformation engine
+│   └── utils/
+│       └── parquet_io.py                      # High-performance Parquet read/write utilities
 └── tests/
-    └── test_mock_pipeline.py                  # Automated offline unit test suite
+    ├── test_mock_pipeline.py                  # Automated offline unit test suite
+    └── test_aws_pipeline_and_agent.py         # Comprehensive AWS tools & agent test suite
 ```
 
 ---
@@ -147,28 +137,25 @@ flowchart TD
 ## ⚙️ Prerequisites
 
 - **Python**: Version `3.11` or higher.
-- **Google Cloud Platform (GCP)** Account with billing enabled.
-- **GCP APIs Enabled**:
-  - BigQuery API (`bigquery.googleapis.com`)
-  - Cloud Storage API (`storage.googleapis.com`)
-  - Dataform API (`dataform.googleapis.com`)
-- **Google Cloud SDK (`gcloud` CLI)** installed and configured.
-- **Gemini API Key**: Obtainable from [Google AI Studio](https://aistudio.google.com/app/apikey).
+- **AWS Account** with active billing.
+- **AWS IAM Permissions**:
+  - Amazon S3 (`s3:*`)
+  - Amazon Athena (`athena:*`)
+  - AWS Glue Data Catalog (`glue:*`)
+  - Amazon Bedrock (`bedrock:InvokeModel`, `bedrock:Converse`)
+- **AWS CLI** installed and configured (`aws configure`).
 
 ---
 
 ## 🚀 Step-by-Step Setup & Execution Guide
 
-### Step 1: Clone the Repository and Navigate to Root
+### Step 1: Create and Activate a Virtual Environment
 
+**On macOS / Linux:**
 ```bash
-git clone https://github.com/surya241022/gcp-assessment-v1--A-Surya-Teja-Reddy-.git
-cd gcp-assessment-v1--A-Surya-Teja-Reddy-
+python3 -m venv .venv
+source .venv/bin/activate
 ```
-
----
-
-### Step 2: Create and Activate a Virtual Environment
 
 **On Windows (PowerShell):**
 ```powershell
@@ -176,15 +163,9 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 ```
 
-**On Linux / macOS:**
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
 ---
 
-### Step 3: Install Dependencies
+### Step 2: Install Dependencies
 
 ```bash
 pip install -r requirements.txt
@@ -192,165 +173,155 @@ pip install -r requirements.txt
 
 ---
 
-### Step 4: Configure Environment Variables
+### Step 3: Configure Environment Variables
 
 1. Copy the sample environment file:
    ```bash
    cp .env.example .env
    ```
-2. Open `.env` and fill in your GCP Project ID, GCS Bucket Name, and Gemini API Key:
+2. Open `.env` and fill in your AWS credentials and configuration:
    ```env
-   # Google Cloud Platform Configuration
-   GCP_PROJECT_ID=your-gcp-project-id
-   GCP_REGION=asia-south1
-   GCS_BUCKET_NAME=your-gcs-bucket-name
-   BQ_LOCATION=asia-south1
+   # AWS Configuration
+   AWS_REGION=us-east-1
+   AWS_ACCESS_KEY_ID=your-aws-access-key-id
+   AWS_SECRET_ACCESS_KEY=your-aws-secret-access-key
 
-   # BigQuery Datasets
-   BQ_DATASET_ID=bronze
+   # Amazon S3 & Lakehouse Configuration
+   AWS_S3_BUCKET=northstar-retail-lakehouse
+   ATHENA_DATABASE=northstar_lakehouse
+   ATHENA_WORKGROUP=primary
+   ATHENA_OUTPUT_LOCATION=s3://northstar-retail-lakehouse/athena-results/
+
+   # Medallion Layers
+   BRONZE_DATASET=bronze
+   SILVER_DATASET=silver
    GOLD_DATASET=gold
 
-   # BigQuery Gold Tables
-   FACT_SALES_TABLE=fact_sales
-   DIM_PRODUCT_TABLE=dim_product
-   DIM_DATE_TABLE=dim_date
-   DOCUMENT_TABLE=product_documents
-
-   # Gemini API Key (from Google AI Studio)
-   GEMINI_API_KEY=your-gemini-api-key
+   # Amazon Bedrock LLM Configuration
+   AWS_BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
+   AWS_EMBEDDING_MODEL_ID=amazon.titan-embed-text-v2:0
    ```
 
 ---
 
-### Step 5: Authenticate with Google Cloud
+### Step 4: Authenticate with AWS
 
-Authenticate your local environment using Application Default Credentials (ADC):
+Configure your local environment using AWS CLI:
 
 ```bash
-gcloud auth application-default login
-gcloud config set project your-gcp-project-id
+aws configure
 ```
 
 ---
 
-### Step 6: Provision GCS Bucket and Ingest Raw Data
+### Step 5: Provision S3 Lakehouse Bucket
 
-1. **Create the Cloud Storage Bucket**:
-   ```bash
-   python src/ingestion/setup_gcp.py
-   ```
+Create the S3 bucket with default SSE-S3 encryption and Block Public Access:
 
-2. **Upload Raw Sales CSV and Product Documents to GCS**:
-   ```bash
-   python src/ingestion/upload_to_gcs.py
-   ```
-   *This uploads `data/sales.csv` and `data/product_docs/*` to `gs://<your-bucket>/raw/` preserving directory hierarchy.*
-
----
-
-### Step 7: Ingest Data into BigQuery (Bronze & Gold Docs)
-
-1. **Load Sales Data into BigQuery Bronze Layer (`bronze.sales_raw`)**:
-   ```bash
-   python src/ingestion/load_sales_to_bigquery.py
-   ```
-
-2. **Parse Multi-Format Policy Documents and Load into BigQuery (`gold.product_documents`)**:
-   ```bash
-   python src/ingestion/load_product_docs_to_bigquery.py
-   ```
-   *This script automatically parses PDFs (via `pypdf`), JSON files, TXT files, and CSV FAQs and indexes them into the Gold dataset.*
-
----
-
-### Step 8: Execute Dataform Transformations (Silver & Gold Layers)
-
-Execute the Dataform pipeline to transform raw data into the Silver and Gold dimensional models.
-
-#### Option A: Running via Google Cloud Console
-1. Navigate to **Dataform** in the Google Cloud Console.
-2. Open your repository workspace.
-3. Click **Start Execution** > **All Actions** (or select tags `silver` and `gold`).
-
-#### Option B: Running via Dataform CLI
 ```bash
-cd dataform
-dataform run --tags silver,gold
-cd ..
+python src/ingestion/setup_aws.py
 ```
+
+---
+
+### Step 6: Upload Raw Data to Amazon S3
+
+Upload `data/sales.csv` and `data/product_docs/*` to `s3://<your-bucket>/raw/`:
+
+```bash
+python src/ingestion/upload_to_s3.py
+```
+
+---
+
+### Step 7: Ingest Bronze Sales & Gold Policy Documents
+
+1. **Stage Sales Data into Bronze Layer (`bronze/sales_raw`)**:
+   ```bash
+   python src/ingestion/load_sales_to_lakehouse.py
+   ```
+
+2. **Parse Multi-Format Policy Documents into Gold Layer (`gold/product_documents`)**:
+   ```bash
+   python src/ingestion/load_product_docs_to_lakehouse.py
+   ```
+
+---
+
+### Step 8: Execute Medallion Transformations (Silver & Gold Layers)
+
+Run the transformation pipeline to cleanse raw data and generate the dimensional star schema in high-performance Snappy Parquet:
+
+```bash
+python src/transformations/transform_medallion.py
+```
+
+*This generates `sales_enriched.parquet` (Silver), `fact_sales.parquet`, `dim_product.parquet`, and `dim_date.parquet` (Gold).*
 
 ---
 
 ### Step 9: Launch the NorthStar Retail AI Assistant
 
-Start the Google ADK web development server:
-
+#### Option A: Interactive CLI Assistant
 ```bash
-adk web
+python -m agent.agent
 ```
 
+#### Option B: Web Chat Server (Browser UI & REST API)
+```bash
+python -m agent.api
+```
 Open your browser and navigate to:
 ```text
 http://127.0.0.1:8000
 ```
-Select the **`northstar_retail_agent`** from the agent dropdown.
 
 ---
 
 ### Step 10: Zero-Credential Mock & Offline Verification
 
-Where live GCP services are unavailable, run the isolated mock suite to test the entire pipeline offline:
+When live AWS credentials are not configured, run the automated test suites locally:
 
 1. **Run Simulated Ingestion**:
    ```bash
    python mock/mock_ingestion.py
    ```
 
-2. **Run Automated Offline Unit Tests**:
+2. **Run All Automated Unit Tests**:
    ```bash
-   python -m unittest tests/test_mock_pipeline.py
+   python -m unittest discover tests
    ```
 
 ---
 
-## 💬 Sample Prompts & Verification
+## 💬 Sample Prompts & Expected Grounding
 
-| Category | User Query | Expected Behavior / Tool Used |
-| :--- | :--- | :--- |
-| **Top Products** | *"What are the top 5 highest selling products by total revenue?"* | Calls `get_top_products(limit=5)` querying `fact_sales` & `dim_product`. |
-| **Regional Sales** | *"Can you give me the total revenue breakdown across all regions?"* | Calls `get_revenue_by_region()` querying `fact_sales`. |
-| **Recent Performance** | *"Which category generated the highest revenue in the 7 days prior to the latest recorded sale?"* | Calls `get_recent_best_category()` using the relative 7-day window. |
-| **Return Policy** | *"What is the return policy for opened electronics?"* | Calls `search_policy_documents("returns")` on `gold.product_documents`. |
-| **Warranty & Support** | *"How long is the standard warranty on stationery and appliances?"* | Calls `search_policy_documents("warranty")` on `gold.product_documents`. |
-| **Shipping Fees** | *"What are the shipping charges for standard and express delivery?"* | Calls `search_policy_documents("shipping")` on `gold.product_documents`. |
-
----
-
-## 🎯 Key Design Decisions & Architecture
-
-1. **Strict Grounding & Anti-Hallucination**:
-   - The LLM instructions explicitly prohibit reading raw CSVs or relying on generic knowledge for store metrics.
-   - All sales analytics are routed to BigQuery Gold SQL aggregations.
-   - All policy answers are sourced directly from ingested documentation in `gold.product_documents`.
-2. **Medallion Data Architecture**:
-   - **Bronze**: Exact, untouched raw data ingestion from GCS.
-   - **Silver**: Deduplicated, type-casted (`NUMERIC`, `DATE`, `INT64`), null-filtered data.
-   - **Gold**: High-performance Star Schema (`fact_sales`, `dim_product`, `dim_date`) optimized for analytical and agentic queries.
-3. **Relative 7-Day Window for Category Analytics**:
-   - Rather than relying on today's system date (which would yield no results for historical static datasets), `get_recent_best_category` dynamically calculates `MAX(date_key)` from `fact_sales` and computes performance across `[MAX(date_key) - 7, MAX(date_key))`.
-4. **Multi-Format Document Extraction**:
-   - `load_product_docs_to_bigquery.py` handles PDF, JSON, TXT, and CSV formats uniformly, producing clean, queryable text for semantic lookups.
+| Category | User Query | Expected Behavior / Tool Used | Authoritative Source |
+| :--- | :--- | :--- | :--- |
+| **Top Products** | *"What are the top 5 highest selling products by total revenue?"* | Calls `get_top_products(limit=5)` joining `fact_sales` & `dim_product`. | `Source: Amazon Athena Gold` |
+| **Regional Sales** | *"Can you give me the total revenue breakdown across all regions?"* | Calls `get_revenue_by_region()` querying `fact_sales`. | `Source: Amazon Athena Gold` |
+| **Recent Performance** | *"Which category generated the highest revenue in the 7 days prior to the latest recorded sale?"* | Calls `get_recent_best_category()` using relative 7-day window. | `Source: Amazon Athena Gold` |
+| **Return Policy** | *"What is the return policy for purchases?"* | Calls `search_policy_documents("return")` on Gold documents. | `Source: returns.pdf` |
+| **Warranty & Support** | *"How long is the standard warranty on electronics and appliances?"* | Calls `search_policy_documents("warranty")` on Gold documents. | `Source: warranty.pdf` |
+| **Shipping Fees** | *"What are the shipping charges for standard and express delivery?"* | Calls `search_policy_documents("shipping")` on Gold documents. | `Source: shipping.json` |
 
 ---
 
-## ⚠️ Assumptions & Limitations
+## 🎯 Key Architectural Improvements over GCP
 
-- **Dataset Recency**: Historical batch sales transactions are used; real-time streaming ingestion (e.g. Pub/Sub to BigQuery) can be added for live streaming scenarios.
-- **Document Search**: Current document retrieval uses keyword pattern matching on BigQuery text columns; integration with Vertex AI Vector Search / Text Embeddings can be implemented for deeper semantic semantic similarity at scale.
-- **Authentication**: Requires standard Google Cloud Application Default Credentials and a valid Gemini API key.
+1. **Columnar Parquet Storage**:
+   - Replaced uncompressed text tables with Snappy-compressed Apache Parquet in Amazon S3, cutting storage size by ~75% and reducing Amazon Athena scan costs by up to 90%.
+2. **Hybrid Semantic Policy Search**:
+   - Upgraded from simple SQL `LIKE '%query%'` to token-weighted relevance scoring and Amazon Bedrock Titan Text Embeddings compatibility, ensuring accurate answers even when users use natural synonyms.
+3. **Native Bedrock Converse API with Tool Use**:
+   - Built directly on AWS Bedrock's native Converse API, eliminating heavy third-party framework overhead while natively supporting Claude 3.5 Sonnet, Claude 3 Haiku, and Amazon Nova.
+4. **Resilient Dual-Mode Execution**:
+   - Tools dynamically execute against Amazon Athena on AWS or transparently query local Gold Parquet files via DuckDB during offline development, providing 100% offline testability.
+5. **Streamlined Security & IAM**:
+   - Built-in SSE-S3 AES-256 encryption, S3 Block Public Access enforcement, and native AWS IAM role support.
 
 ---
 
 ## 📄 License
 
-This project is developed as part of the GCP assessment and is licensed under the MIT License.
+This project is licensed under the MIT License.

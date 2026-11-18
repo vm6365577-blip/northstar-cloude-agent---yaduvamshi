@@ -1,3 +1,8 @@
+"""
+NorthStar Retail - Mock Pipeline Unit Tests
+Ensures all mock tools and isolated pipelines run end-to-end without active AWS credentials.
+"""
+
 import unittest
 from mock.mock_sales_tools import (
     get_mock_top_products,
@@ -10,7 +15,7 @@ from mock.mock_policy_tools import (
 
 
 class TestMockPipelineAndTools(unittest.TestCase):
-    """Test suite ensuring all mock tools and isolated pipelines run end-to-end without active GCP credentials."""
+    """Test suite ensuring all mock tools and isolated pipelines run end-to-end without active AWS credentials."""
 
     def test_mock_get_top_products(self):
         result = get_mock_top_products(limit=5)

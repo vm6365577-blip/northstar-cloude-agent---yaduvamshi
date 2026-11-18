@@ -1,5 +1,0 @@
-dataformCoreVersion: 3.0.65
-defaultProject: gcp-assessment-v1-surya
-defaultLocation: asia-south1
-defaultDataset: dataform
-defaultAssertionDataset: dataform_assertions
