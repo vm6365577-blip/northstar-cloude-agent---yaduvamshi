@@ -149,7 +149,16 @@ flowchart TD
 
 ## 🚀 Step-by-Step Setup & Execution Guide
 
-### Step 1: Create and Activate a Virtual Environment
+### Step 1: Clone the Repository
+
+```bash
+git clone https://github.com/vm6365577-blip/northstar-cloude-agent---yaduvamshi.git
+cd northstar-cloude-agent---yaduvamshi
+```
+
+---
+
+### Step 2: Create and Activate a Virtual Environment
 
 **On macOS / Linux:**
 ```bash
@@ -165,7 +174,7 @@ python -m venv .venv
 
 ---
 
-### Step 2: Install Dependencies
+### Step 3: Install Dependencies
 
 ```bash
 pip install -r requirements.txt
@@ -173,7 +182,7 @@ pip install -r requirements.txt
 
 ---
 
-### Step 3: Configure Environment Variables
+### Step 4: Configure Environment Variables
 
 1. Copy the sample environment file:
    ```bash
@@ -204,7 +213,7 @@ pip install -r requirements.txt
 
 ---
 
-### Step 4: Authenticate with AWS
+### Step 5: Authenticate with AWS
 
 Configure your local environment using AWS CLI:
 
@@ -214,7 +223,7 @@ aws configure
 
 ---
 
-### Step 5: Provision S3 Lakehouse Bucket
+### Step 6: Provision S3 Lakehouse Bucket
 
 Create the S3 bucket with default SSE-S3 encryption and Block Public Access:
 
@@ -224,7 +233,7 @@ python src/ingestion/setup_aws.py
 
 ---
 
-### Step 6: Upload Raw Data to Amazon S3
+### Step 7: Upload Raw Data to Amazon S3
 
 Upload `data/sales.csv` and `data/product_docs/*` to `s3://<your-bucket>/raw/`:
 
@@ -234,7 +243,7 @@ python src/ingestion/upload_to_s3.py
 
 ---
 
-### Step 7: Ingest Bronze Sales & Gold Policy Documents
+### Step 8: Ingest Bronze Sales & Gold Policy Documents
 
 1. **Stage Sales Data into Bronze Layer (`bronze/sales_raw`)**:
    ```bash
@@ -248,7 +257,7 @@ python src/ingestion/upload_to_s3.py
 
 ---
 
-### Step 8: Execute Medallion Transformations (Silver & Gold Layers)
+### Step 9: Execute Medallion Transformations (Silver & Gold Layers)
 
 Run the transformation pipeline to cleanse raw data and generate the dimensional star schema in high-performance Snappy Parquet:
 
@@ -260,7 +269,7 @@ python src/transformations/transform_medallion.py
 
 ---
 
-### Step 9: Launch the NorthStar Retail AI Assistant
+### Step 10: Launch the NorthStar Retail AI Assistant
 
 #### Option A: Interactive CLI Assistant
 ```bash
@@ -278,7 +287,7 @@ http://127.0.0.1:8000
 
 ---
 
-### Step 10: Zero-Credential Mock & Offline Verification
+### Step 11: Zero-Credential Mock & Offline Verification
 
 When live AWS credentials are not configured, run the automated test suites locally:
 
